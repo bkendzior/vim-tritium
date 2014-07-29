@@ -9,36 +9,52 @@ let b:did_indent = 1
 
 setlocal indentexpr=GetIndent()
 
+function! IsComment(myLine)
+  let condStartCommentHash = "^\\s*#"
+  let condStartCommentSlash = "^\\s*\\\/\\\/"
+  return a:myLine =~ condStartCommentHash || a:myLine =~ condStartCommentSlash
+endfunction
+
+function! IsStartBrace(myLine)
+  let condStartBraceHash = "\{\\s*\\\(#.*\\\)\\\?\\s*$"
+  let condStartBraceSlash = "\{\\s*\\\(\\\/\\\/.*\\\)\\\?\\s*$"
+  return a:myLine =~ condStartBraceHash || a:myLine =~ condStartBraceSlash
+endfunction
+
+function! IsCloseBrace(myLine)
+  let condCloseBraceHash = "\}\\s*\\\(#.*\\\)\\\?\\s*$"
+  let condCloseBraceSlash = "\}\\s*\\\(\\\/\\\/.*\\\)\\\?\\s*$"
+  return a:myLine =~ condCloseBraceHash || a:myLine =~ condCloseBraceSlash
+endfunction
+
 function! GetIndent()
-  let lnum = prevnonblank(v:lnum - 1) " the line number of the previous nonblank line
+  let lnum = prevnonblank(v:lnum - 1) " the line number of the prev nonblank line
   let this_line = getline(v:lnum) " the content of the current line
-  let previous_line = getline(lnum) " the content of the prev nonblank line
+  let prev_line = getline(lnum) " the content of the prev nonblank line
 
   " Hit the start of the file, use zero indent.
   if a:lnum == 0
     return 0
   endif
 
-  " Note that certain special characters (like ()?/) require 3 backslashes (two
-  " to escape an original backslash, one to escape the char, combined to be an
-  " escaped version of the char when parsed). For clarity, more conditions are
-  " written out, instead of fewer conditions but uglier lines of regex.
-
-  if this_line =~ "^\\s*#"
-    " If whole line is just a comment, normal indent
+  if IsComment(this_line) && !IsComment(prev_line) && IsStartBrace(prev_line)
+    " If curr is comment, prev isn't, but prev is a starting brace, indent
+    return indent(lnum) + &sw
+  elseif IsComment(this_line)
+    " If curr is comment otherwise, normal indent
+    return indent(lnum)
+  elseif !IsComment(this_line) && IsComment(prev_line)
+    " If curr is not comment but prev is, normal indent
     return indent(lnum)
   else
-    if this_line =~ "\}\\s*\\\(#.*\\\)\\\?\\s*$" && previous_line =~ "\{\\s*\\\(#.*\\\)\\\?\\s*$"
-      " If prev is { and curr is }, normal indent [# comment version]
+    if IsCloseBrace(this_line) && IsStartBrace(prev_line)
+      " If prev is { and curr is }, normal indent
       return indent(lnum)
-    elseif this_line =~ "\}\\s*\\\(\\\/.*\\\)\\\?\\s*$" && previous_line =~ "\{\\s*\\\(\\\/.*\\\)\\\?\\s*$"
-      " If prev is { and curr is }, normal indent [// comment version]
-      return indent(lnum)
-    elseif this_line =~ "\}\\s*\\\(#.*\\\)\\\?\\s*$" || this_line =~ "\}\\s*\\\(\\\/.*\\\)\\\?\\s*$"
+    elseif IsCloseBrace(this_line)
       " If curr is } but prev is not {, outdent
       return indent(lnum) - &sw
-    elseif previous_line =~ "\{\\s*\\\(#.*\\\)\\\?\\s*$" || previous_line =~ "\{\\s*\\\(\\\/.*\\\)\\\?\\s*$"
-      " If prev is { but curr is not {, indent
+    elseif IsStartBrace(prev_line)
+      " If prev is { but curr is not }, indent
       return indent(lnum) + &sw
     else
       " Normal indent otherwise
