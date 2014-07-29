@@ -101,4 +101,4 @@ endif
 " TODO: include HTML syntax file so that stuff works as well
 " TODO: advanced - add some tritium based rules (value worked on inside attribute etc)
 
-vim: ts=2
+" vim: ts=2
